@@ -1,7 +1,9 @@
+import argparse
 import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict
 
 import torch
@@ -23,9 +25,6 @@ class AppConfig:
     merged_patch_size: int
     with_tag: bool
     attention_threshold: float
-    threshold_low: int
-    threshold_high: int
-    gt_binary_threshold: int
     sc_low_threshold: float
     sc_high_threshold: float
     model_path: str
@@ -37,11 +36,18 @@ class AppConfig:
     global_save_fig: bool
     normal_set_zero: bool
     return_aggregate: bool
-    dataset: str
     api_base: str
 
 
 _CONFIG_SINGLETON: AppConfig | None = None
+_CONFIG_SECTION: str | None = None
+
+_SECTION_KEYS = {
+    "common",
+    "generate_outputs",
+    "evaluate_from_saved_global",
+    "calculate_metrics",
+}
 
 
 def _as_bool(value: Any, key: str) -> bool:
@@ -106,6 +112,30 @@ def _apply_env_overrides(data: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+def _flatten_sectioned_config(data: Dict[str, Any], section: str | None) -> Dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValueError("配置文件根节点必须是对象（dict）")
+    if not any(key in data for key in _SECTION_KEYS):
+        return data
+    merged: Dict[str, Any] = {}
+    common = data.get("common", {}) or {}
+    if not isinstance(common, dict):
+        raise ValueError("common 配置必须是对象（dict）")
+    merged.update(common)
+    for key, value in data.items():
+        if key in _SECTION_KEYS or key == "common":
+            continue
+        merged[key] = value
+    if section:
+        if section not in data:
+            raise KeyError(f"缺少配置分组: {section}")
+        section_data = data.get(section, {}) or {}
+        if not isinstance(section_data, dict):
+            raise ValueError(f"{section} 配置必须是对象（dict）")
+        merged.update(section_data)
+    return merged
+
+
 def _validate_and_build(data: Dict[str, Any]) -> AppConfig:
     required = [
         "OPENROUTER_API_KEY",
@@ -124,18 +154,15 @@ def _validate_and_build(data: Dict[str, Any]) -> AppConfig:
         OPENROUTER_API_KEY=_as_str(data.get("OPENROUTER_API_KEY"), "OPENROUTER_API_KEY"),
         api_model=_as_str(data.get("api_model"), "api_model"),
         dataset_path=_as_str(data.get("dataset_path"), "dataset_path"),
+        model_path=_as_str(data.get("model_path", ""), "model_path"),
         save_dir=_as_str(data.get("save_dir"), "save_dir"),
         replace_path=_as_str(data.get("replace_path"), "replace_path"),
         max_size=_as_int(data.get("max_size"), "max_size"),
         merged_patch_size=_as_int(data.get("merged_patch_size"), "merged_patch_size"),
         with_tag=_as_bool(data.get("with_tag"), "with_tag"),
         attention_threshold=_as_float(data.get("attention_threshold", 0.17), "attention_threshold"),
-        threshold_low=_as_int(data.get("threshold_low", 0), "threshold_low"),
-        threshold_high=_as_int(data.get("threshold_high", 1), "threshold_high"),
-        gt_binary_threshold=_as_int(data.get("gt_binary_threshold", 128), "gt_binary_threshold"),
         sc_low_threshold=_as_float(data.get("sc_low_threshold", 0.1), "sc_low_threshold"),
         sc_high_threshold=_as_float(data.get("sc_high_threshold", 0.2), "sc_high_threshold"),
-        model_path=_as_str(data.get("model_path", ""), "model_path"),
         max_new_tokens=_as_int(data.get("max_new_tokens", 1024), "max_new_tokens"),
         save_attentions=_as_bool(data.get("save_attentions", False), "save_attentions"),
         overwrite=_as_bool(data.get("overwrite", False), "overwrite"),
@@ -144,15 +171,10 @@ def _validate_and_build(data: Dict[str, Any]) -> AppConfig:
         global_save_fig=_as_bool(data.get("global_save_fig", True), "global_save_fig"),
         normal_set_zero=_as_bool(data.get("normal_set_zero", False), "normal_set_zero"),
         return_aggregate=_as_bool(data.get("return_aggregate", True), "return_aggregate"),
-        dataset=_as_str(data.get("dataset", "mvtec"), "dataset"),
         api_base=_as_str(data.get("api_base", "https://openrouter.ai/api/v1/chat/completions"), "api_base"),
     )
-    if config.threshold_low >= config.threshold_high:
-        raise ValueError("配置项 threshold_low 必须小于 threshold_high")
     if not (0.0 <= config.attention_threshold <= 1.0):
         raise ValueError("配置项 attention_threshold 必须在 [0, 1] 范围内")
-    if not (0 <= config.gt_binary_threshold <= 255):
-        raise ValueError("配置项 gt_binary_threshold 必须在 [0, 255] 范围内")
     if not (0.0 <= config.sc_low_threshold <= 1.0 and 0.0 <= config.sc_high_threshold <= 1.0):
         raise ValueError("配置项 sc_low_threshold/sc_high_threshold 必须在 [0, 1] 范围内")
     if config.sc_low_threshold >= config.sc_high_threshold:
@@ -160,13 +182,19 @@ def _validate_and_build(data: Dict[str, Any]) -> AppConfig:
     return config
 
 
-def initialize_config(config_path: str = "config/config.yaml", force_reload: bool = False) -> AppConfig:
-    global _CONFIG_SINGLETON
-    if _CONFIG_SINGLETON is not None and not force_reload:
+def initialize_config(
+    config_path: str = "config/config.yaml",
+    force_reload: bool = False,
+    section: str | None = None,
+) -> AppConfig:
+    global _CONFIG_SINGLETON, _CONFIG_SECTION
+    if _CONFIG_SINGLETON is not None and not force_reload and _CONFIG_SECTION == section:
         return _CONFIG_SINGLETON
     raw = _read_config_file(config_path)
-    merged = _apply_env_overrides(raw)
+    flattened = _flatten_sectioned_config(raw, section)
+    merged = _apply_env_overrides(flattened)
     _CONFIG_SINGLETON = _validate_and_build(merged)
+    _CONFIG_SECTION = section
     return _CONFIG_SINGLETON
 
 
@@ -174,6 +202,29 @@ def get_config() -> AppConfig:
     if _CONFIG_SINGLETON is None:
         raise RuntimeError("配置尚未初始化，请先调用 initialize_config()")
     return _CONFIG_SINGLETON
+
+
+def load_args(section: str | None = None, config_path: str = "config/config.yaml") -> SimpleNamespace:
+    config = initialize_config(config_path=config_path, section=section)
+    return SimpleNamespace(**config.__dict__)
+
+
+def load_args_from_cli(
+    section: str | None = None,
+    default_config_path: str = "config/config.yaml",
+    argv: list[str] | None = None,
+) -> SimpleNamespace:
+    parser = argparse.ArgumentParser(description="Run with a config file.")
+    parser.add_argument(
+        "--config",
+        "--config_path",
+        dest="config_path",
+        default=default_config_path,
+        help="Path to config file (.yaml/.yml/.json).",
+    )
+    args, _ = parser.parse_known_args(argv)
+    return load_args(section=section, config_path=args.config_path)
+
 
 def load_dataset(dataset_path):
     import pandas as pd

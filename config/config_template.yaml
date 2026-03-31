@@ -1,25 +1,28 @@
-OPENROUTER_API_KEY: ""
-api_base: "https://openrouter.ai/api/v1/chat/completions"
-api_model: "qwen/qwen3-235b-a22b-2507"
-dataset: "mvtec"
-dataset_path: "/path/to/dataset.tsv"
-save_dir: "/path/to/save_dir"
-replace_path: "/path/to/replace_prefix/"
-model_path: "/path/to/model"
-generated_dir: "/path/to/generated_dir"
-max_size: 420
-merged_patch_size: 28
-with_tag: true
-attention_threshold: 0.17
-threshold_low: 0
-threshold_high: 1
-gt_binary_threshold: 128
-sc_low_threshold: 0.1
-sc_high_threshold: 0.2
-max_new_tokens: 1024
-save_attentions: false
-overwrite: false
-use_qkvfp32_monkey_patch: true
-global_save_fig: true
-normal_set_zero: false
-return_aggregate: true
+common:
+  OPENROUTER_API_KEY: ""
+  api_base: "https://openrouter.ai/api/v1/chat/completions"
+  api_model: "qwen/qwen3-235b-a22b-2507"
+  dataset_path: "/path/to/dataset.tsv"
+  save_dir: "/path/to/save_dir"
+  replace_path: "/path/to/replace_prefix/"
+  model_path: "/path/to/model"
+  max_size: 420
+  merged_patch_size: 28
+  with_tag: true
+  attention_threshold: 0.17
+  sc_low_threshold: 0.1
+  sc_high_threshold: 0.2
+  overwrite: false
+
+generate_outputs:
+  max_new_tokens: 1024
+  save_attentions: false
+  use_qkvfp32_monkey_patch: true
+
+evaluate_from_saved_global:
+  generated_dir: "/path/to/generated_dir"
+  global_save_fig: true
+  normal_set_zero: false
+  return_aggregate: true
+
+calculate_metrics: {}

@@ -5,11 +5,10 @@ Second pass: read saved attention files, rebuild processed inputs, and compute s
 """
 
 import os
-import argparse
 import numpy as np
 from qwen_vl_utils import process_vision_info
-from util import get_attention_from_saved_new, compute_seg_metrics, load_model, resize_image, initialize_config, get_config
-from util.core import apply_config_overrides, extract_tagged_answer, normalize_yes_no, build_messages
+from util import get_attention_from_saved_new, compute_seg_metrics, load_model, resize_image, load_args_from_cli
+from util.core import extract_tagged_answer, normalize_yes_no, build_messages
 from util.path_builders import PathBuilder
 from PIL import Image
 import pickle
@@ -89,7 +88,7 @@ def main(args):
             gt_img = Image.open(gt_image)
             gt_img = gt_img.convert('L')
             gt_img = gt_img.resize((width, height),resample=Image.NEAREST)
-            gt_mask = (np.array(gt_img) > args.gt_binary_threshold).astype(int)
+            gt_mask = (np.array(gt_img) > 128).astype(int)
         except Exception:
             gt_mask = np.zeros((height, width)).astype(int)
 
@@ -142,24 +141,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument('--config_path', default='config/config.yaml')
-    p.add_argument('--generated_dir', default='', help='where to save .npz files')
-    p.add_argument('--dataset', '-dd', default='')
-    p.add_argument('--model_path', '-m', default='', help='')
-    p.add_argument('--replace_path', default='')
-    p.add_argument('--max_size', type=int, default=0)
-    p.add_argument('--merged_patch_size', type=int, default=0)
-    p.add_argument('--gt_binary_threshold', type=int, default=128)
-    p.add_argument('--sc_low_threshold', type=float, default=0.0)
-    p.add_argument('--sc_high_threshold', type=float, default=1.0)
-    p.add_argument('--global_save_fig', action='store_true', help='if get_median_outputtoken_vision_attn should save visualization')
-    p.add_argument('--normal_set_zero', action='store_true', help='set anomaly maps to zero for predicted normal images')
-    p.add_argument('--overwrite', action='store_true')
-    p.add_argument('--return_aggregate', action='store_true')
-    p.add_argument('--with_tag', action='store_true')
-    args = p.parse_args()
-    initialize_config(args.config_path)
-    config = get_config()
-    apply_config_overrides(args, config)
+    args = load_args_from_cli(section="evaluate_from_saved_global")
     main(args)

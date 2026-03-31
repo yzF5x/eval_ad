@@ -5,21 +5,19 @@ First pass: iterate images, run model.generate(...), and save outputs and metada
 """
 
 import os
-import argparse
 import json
 from qwen_vl_utils import process_vision_info
 from util import (
-    get_config,
+    load_args_from_cli,
     resize_image,
     toliststr,
-    initialize_config,
     load_dataset,
     use_monkey_patch_qwen2_5vl_qkvfp32_eager_visionattn,
     use_monkey_patch_qwen2_5vl_qkvfp32_eager_encoderselfattn,
     load_model,
     get_saved_attention,
 )
-from util.core import apply_config_overrides, build_messages, move_to_cpu
+from util.core import build_messages, move_to_cpu
 from util.path_builders import PathBuilder
 import torch
 import pickle
@@ -107,22 +105,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument('--config_path', default='config/config.yaml')
-    p.add_argument('--dataset_path', '-d', default='', help='')
-    p.add_argument('--dataset', '-dd', default='')
-    p.add_argument('--model_path', '-m', default='', help='')
-    p.add_argument('--save_dir', '-s', default='', help='where to save .npz files')
-    p.add_argument('--replace_path', default='')
-    p.add_argument('--max_size', type=int, default=0)
-    p.add_argument('--merged_patch_size', type=int, default=0)
-    p.add_argument('--max_new_tokens', type=int, default=0)
-    p.add_argument('--save_attentions', action='store_false', help='also save attentions from generate (very large)')
-    p.add_argument('--overwrite', action='store_true')
-    p.add_argument('--use_qkvfp32_monkey_patch', action='store_false')
-    p.add_argument('--with_tag', action='store_true')
-    args = p.parse_args()
-    initialize_config(args.config_path)
-    config = get_config()
-    apply_config_overrides(args, config)
+    args = load_args_from_cli(section="generate_outputs")
     main(args)

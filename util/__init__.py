@@ -6,15 +6,16 @@ from .core import (
     move_to_cpu,
     normalize_yes_no,
     send2api,
+    toliststr, 
+    resize_image
 )
 from .metrics import compute_seg_metrics
-from .loader import get_config, initialize_config, load_dataset, load_model
+from .loader import get_config, initialize_config, load_args, load_args_from_cli, load_dataset, load_model
 from .qkvfp32_monkey_patch import (
     use_monkey_patch_qwen2_5vl_qkvfp32_eager_encoderselfattn,
     use_monkey_patch_qwen2_5vl_qkvfp32_eager_visionattn,
 )
 from .path_builders import PathBuilder
-from .util import toliststr, resize_image
 from .visual_tools import get_attention_from_saved_new, get_saved_attention
 
 __all__ = [
@@ -25,6 +26,8 @@ __all__ = [
     "normalize_yes_no",
     "toliststr",
     "load_dataset",
+    "load_args",
+    "load_args_from_cli",
     "load_model",
     "initialize_config",
     "get_config",

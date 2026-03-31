@@ -414,6 +414,8 @@ def get_saved_attention(output_ids: Mapping[str, Any]) -> Tuple[torch.Tensor, in
     output_token_len = len(output_ids["attentions"])
     return llm_attn_matrix, output_token_len
 
+def get_image_info(image):
+    pass
 
 def _resolve_attention_context(
     tokenizer: Any,
@@ -464,19 +466,17 @@ def _build_masks_and_scores(
     if with_tag:
         _, _, summed_all, _ = get_threshold_and_weight_from_sum(
             filtered_prompt2output_text,
-            config.threshold_low,
-            config.threshold_high,
+            0,1
         )
     else:
         _, _, summed_all, _ = get_threshold_and_weight_from_sum(
             filtered_prompt2output_text,
-            config.threshold_low,
-            config.threshold_high,
+            5,6
         )
     threshold = summed_all[keep_indices].median()
     valid_sum_index_all = summed_all >= threshold
     par_info_all = get_par_from_attention(vlm_attn, config.attention_threshold, grid_height, grid_width)
-    valid_par_index_all = par_info_all <= DEFAULT_PAR_THRESHOLD
+    valid_par_index_all = par_info_all <= 0.5
     valid_filtered_token = torch.zeros(summed_all.shape[0], dtype=torch.bool)
     valid_filtered_token[keep_indices] = True
     se_info_all, _, _, _ = get_spatial_entropy_from_attention(vlm_attn, grid_height=grid_height, grid_width=grid_width)
